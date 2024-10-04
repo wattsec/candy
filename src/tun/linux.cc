@@ -49,6 +49,7 @@ public:
     }
 
     // 配置网卡,设置路由
+    // Configure network card, set route
     int up() {
         this->tunFd = open("/dev/net/tun", O_RDWR);
         if (this->tunFd < 0) {
@@ -67,6 +68,7 @@ public:
         }
 
         // 设置设备名
+        // Set device name
         struct ifreq ifr;
         memset(&ifr, 0, sizeof(ifr));
         strncpy(ifr.ifr_name, this->name.c_str(), IFNAMSIZ);
@@ -77,6 +79,7 @@ public:
         }
 
         // 创建 socket, 并通过这个 socket 更新网卡的其他配置
+        // Create socket, and use this socket to update other network card configurations
         struct sockaddr_in *addr;
         addr = (struct sockaddr_in *)&ifr.ifr_addr;
         addr->sin_family = AF_INET;
@@ -87,6 +90,7 @@ public:
         }
 
         // 设置地址
+        // Set address
         addr->sin_addr.s_addr = Candy::Address::hostToNet(this->ip);
         if (ioctl(sockfd, SIOCSIFADDR, (caddr_t)&ifr) == -1) {
             spdlog::critical("set ip address failed: ip {:08x}", this->ip);
@@ -95,6 +99,7 @@ public:
         }
 
         // 设置掩码
+        // Set mask
         addr->sin_addr.s_addr = Candy::Address::hostToNet(this->mask);
         if (ioctl(sockfd, SIOCSIFNETMASK, (caddr_t)&ifr) == -1) {
             spdlog::critical("set mask failed: mask {:08x}", this->mask);
@@ -103,6 +108,7 @@ public:
         }
 
         // 设置 MTU
+        // Set MTU
         ifr.ifr_mtu = this->mtu;
         if (ioctl(sockfd, SIOCSIFMTU, (caddr_t)&ifr) == -1) {
             spdlog::critical("set mtu failed: mtu {}", this->mtu);
@@ -111,6 +117,7 @@ public:
         }
 
         // 设置 flags
+        // Set flags
         if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) == -1) {
             spdlog::critical("get interface flags failed");
             close(sockfd);
@@ -124,6 +131,7 @@ public:
         }
 
         // 设置路由
+        // Set route
         struct rtentry route;
         memset(&route, 0, sizeof(route));
 

@@ -15,17 +15,21 @@ namespace Candy {
 class WebSocketServer {
 public:
     // 开始监听和停止监听
+    // Start and stop listening
     int listen(const std::string &ipStr, uint16_t port);
     int stop();
 
     // 设置读操作超时时间
+    // Set read operation timeout
     int setTimeout(int timeout);
 
     // 阻塞的读写操作
+    // Blocking read and write operations
     int read(WebSocketMessage &message);
     int write(const WebSocketMessage &message);
 
     // 关闭单个客户端连接
+    // Close a single client connection
     int close(WebSocketConn conn);
 
     void push(const WebSocketMessage &msg);

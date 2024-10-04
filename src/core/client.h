@@ -44,49 +44,65 @@ struct SysRouteEntry {
 class Client {
 public:
     // 设置客户端名称,用于设置 TUN 设备的名称,格式为 candy-name, 如果 name 为空将被命名为 candy.
+    // Set the client name, used to set the name of the TUN device, format is candy-name, if name is empty it will be named candy.
     int setName(const std::string &name);
     std::string getName() const;
 
     // 客户端工作线程数量
+    // Number of client worker threads
     int setWorkers(int number);
 
     // 连接 websocket 服务端时身份认证的口令
+    // Password for authentication when connecting to the websocket server
     int setPassword(const std::string &password);
 
     // 用于数据转发和对等连接控制的服务端地址
+    // Server address used for data forwarding and peer-to-peer connection control
     int setWebSocketServer(const std::string &server);
 
     // TUN 地址,向服务端要求强制使用这个地址,使用相同地址的前一个设备会被踢出网络
+    // TUN address, request the server to forcibly use this address, the previous device using the same address will be kicked out
+    // of the network
     int setTunAddress(const std::string &cidr);
 
     // 向服务端请求时期望获得的地址,地址不可用时服务端返回新地址
+    // Expected address to request from the server, the server returns a new address if the address is unavailable
     int setExpectedAddress(const std::string &cidr);
 
     // 虚拟 Mac 地址
+    // Virtual Mac address
     int setVirtualMac(const std::string &vmac);
 
     // STUN 服务端,用于开启对等连接
+    // STUN server, used to initiate peer-to-peer connections
     int setStun(const std::string &stun);
 
     // 主动发现时间间隔
+    // Active discovery interval
     int setDiscoveryInterval(int interval);
 
     // 通过本节点路由的代价
+    // Cost of routing through this node
     int setRouteCost(int cost);
 
     // 本地地址更新时执行的回调函数
+    // Callback function executed when the local address is updated
     int setAddressUpdateCallback(std::function<int(const std::string &)> callback);
 
     // 绑定用于 P2P 连接的 UDP 端口, 0 表示由操作系统分配
+    // Bind UDP port for P2P connections, 0 means assigned by the operating system
     int setUdpBindPort(int port);
 
     // 用于局域网连接的地址
+    // Address used for local area network connections
     int setLocalhost(std::string ip);
 
     // 设置最大传输单元
+    // Set the maximum transmission unit
     int setMtu(int mtu);
 
     // 启停客户端用于处理任务的线程
+    // Start and stop client threads for handling tasks
     int run();
     int shutdown();
 

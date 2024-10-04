@@ -278,6 +278,7 @@ int Client::startWsThread() {
     ws.setPingMessage(fmt::format("candy::{}::{}::{}", CANDY_SYSTEM, CANDY_VERSION, hostName()));
 
     // 只需要开 wsThread, 执行过程中会设置 tun 并开 tunThread.
+    // Only need to start wsThread, during execution it will set up tun and start tunThread.
     this->wsThread = std::thread([&] {
         this->handleWebSocketMessage();
         spdlog::debug("websocket client thread exit");
@@ -324,31 +325,37 @@ void Client::handleWebSocketMessage() {
             uint8_t msgType = message.buffer.front();
             switch (msgType) {
             // FORWARD, 拆包后转发给 TUN 设备
+            // FORWARD, after unpacking, forward to TUN device
             case MessageType::FORWARD:
                 handleForwardMessage(message);
                 break;
 
             // 动态地址响应包,启动 TUN 设备并发送 Auth 包
+            // Dynamic address response packet, start TUN device and send Auth packet
             case MessageType::EXPECTED:
                 handleExpectedAddressMessage(message);
                 break;
 
             // 对端连接请求包
+            // Peer connection request packet
             case MessageType::PEER:
                 handlePeerConnMessage(message);
                 break;
 
             // 主动发现报文
+            // Active discovery message
             case MessageType::DISCOVERY:
                 handleDiscoveryMessage(message);
                 break;
 
             // 路由表
+            // Routing table
             case MessageType::ROUTE:
                 handleSysRtMessage(message);
                 break;
 
             // 通用报文
+            // General message
             case MessageType::GENERAL:
                 handleGeneralMessage(message);
                 break;
@@ -359,12 +366,14 @@ void Client::handleWebSocketMessage() {
             }
         }
         // 连接断开,可能是地址冲突,触发正常退出进程的流程
+        // Connection closed, possibly due to address conflict, trigger normal process exit
         if (message.type == WebSocketMessageType::Close) {
             spdlog::info("client websocket close: {}", message.buffer);
             Candy::shutdown(this);
             break;
         }
         // 通信出现错误,触发正常退出进程的流程
+        // Communication error, trigger normal process exit
         if (message.type == WebSocketMessageType::Error) {
             spdlog::warn("client websocket error: {}", message.buffer);
             Candy::shutdown(this);
@@ -663,11 +672,13 @@ void Client::handleDiscoveryMessage(WebSocketMessage &message) {
     uint32_t dst = Address::netToHost(header->dst);
 
     // 收到广播后向发送方回包
+    // After receiving the broadcast, send a reply to the sender
     if (dst == BROADCAST_IP) {
         sendDiscoveryMessage(src);
     }
 
     // 接收方收到广播或发送方收到回包,同时尝试开始直连
+    // The receiver receives the broadcast or the sender receives the reply, and simultaneously tries to start a direct connection
     tryDirectConnection(src);
 }
 
@@ -761,6 +772,9 @@ void Client::handleLocalPeerConnMessage(WebSocketMessage &message) {
 // 需要确保双方同时调用.
 // 1. 收到对方报文时,一般会回包,此时调用
 // 2. 收到主动发现报文时,这时一定会回包
+// Need to ensure both parties call this simultaneously.
+// 1. When receiving a packet from the other party, a reply is usually sent, call this at that time.
+// 2. When receiving an active discovery packet, a reply will definitely be sent.
 void Client::tryDirectConnection(uint32_t ip) {
     std::unique_lock lock(this->ipPeerMutex);
     PeerInfo &peer = this->ipPeerMap[ip];
@@ -868,17 +882,20 @@ void Client::handleTunMessage(std::string buffer) {
         header->daddr = Address::hostToNet(nextHop);
     }
     // 目的地址是本机,直接回写,在 macos 中遇到了这种情况
+    // If the destination address is the local machine, write it back directly. This situation was encountered in macOS.
     if (Address::netToHost(header->daddr) == this->tun.getIP()) {
         this->tun.write(buffer);
         return;
     }
 
     // 尝试通过路由或直连发送
+    // Try to send via routing or direct connection
     if (!sendPeerForwardMessage(buffer)) {
         return;
     }
 
     // 通过 WebSocket 转发
+    // Forward via WebSocket
     sendForwardMessage(buffer);
 }
 
@@ -933,10 +950,13 @@ void Client::tick() {
         switch (peer.getState()) {
         case PeerState::INIT:
             // 收到对方通过服务器转发的数据的时候,会切换为 PREPARING, 这里不做处理
+            // When receiving data forwarded by the server from the other party, it will switch to PREPARING, no processing here
             break;
 
         case PeerState::PREPARING:
             // 长时间处于 PREPARING 状态,无法获取本机的公网信息,进入失败状态
+            // Long time in PREPARING state, unable to obtain the public network information of the local machine, enter the
+            // FAILED state
             if (peer.count > 10) {
                 peer.updateState(PeerState::FAILED);
             } else {
@@ -947,6 +967,8 @@ void Client::tick() {
 
         case PeerState::SYNCHRONIZING:
             // 1.对方版本不支持 2.没有启用对等连接 3.对方无法获取到自己在公网中的信息
+            // 1. The other party's version does not support it 2. Peer-to-peer connection is not enabled 3. The other party
+            // cannot obtain its own public network information
             if (peer.count > 10) {
                 peer.updateState(PeerState::FAILED);
             } else {
@@ -956,6 +978,7 @@ void Client::tick() {
 
         case PeerState::CONNECTING:
             // 进行超时检测,超时后进入 WAITING 状态,否则发送心跳
+            // Perform timeout detection, enter WAITING state after timeout, otherwise send heartbeat
             if (peer.count > 10) {
                 peer.updateState(PeerState::WAITING);
             } else {
@@ -965,6 +988,7 @@ void Client::tick() {
 
         case PeerState::CONNECTED:
             // 进行超时检测,超时后清空对端信息,否则发送心跳
+            // Perform timeout detection, clear peer information after timeout, otherwise send heartbeat
             if (peer.count > 3) {
                 peer.updateState(PeerState::INIT);
                 if (routeCost) {
@@ -980,6 +1004,7 @@ void Client::tick() {
 
         case PeerState::WAITING:
             // 达到等待时长,重新进入初始状态
+            // After reaching the waiting time, re-enter the initial state
             if (peer.count > peer.retry) {
                 peer.updateState(PeerState::INIT);
             }
@@ -987,6 +1012,8 @@ void Client::tick() {
 
         case PeerState::FAILED:
             // 两端任意一方不支持或者未启用对等连接功能,进入失败状态,不再主动重连
+            // Either side does not support or has not enabled the peer-to-peer connection function, enter the FAILED state, no
+            // longer actively reconnect
             break;
         }
         ++peer.count;
@@ -1276,22 +1303,28 @@ int Client::handleStunResponse(const std::string &buffer) {
         // mapped address
         if (Address::netToHost(*(uint16_t *)(attr + pos)) == 0x0001) {
             pos += 6; // 跳过 2 字节类型, 2 字节长度, 1 字节保留, 1 字节IP版本号,指向端口号
+                      // Skip 2 bytes type, 2 bytes length, 1 byte reserved, 1 byte IP version, point to port number
             port = Address::netToHost(*(uint16_t *)(attr + pos));
             pos += 2; // 跳过2字节端口号,指向地址
+                      // Skip 2 bytes port number, point to address
             ip = Address::netToHost(*(uint32_t *)(attr + pos));
             break;
         }
         // xor mapped address
         if (Address::netToHost(*(uint16_t *)(attr + pos)) == 0x0020) {
             pos += 6; // 跳过 2 字节类型, 2 字节长度, 1 字节保留, 1 字节IP版本号,指向端口号
+                      // Skip 2 bytes type, 2 bytes length, 1 byte reserved, 1 byte IP version, point to port number
             port = Address::netToHost(*(uint16_t *)(attr + pos)) ^ 0x2112;
             pos += 2; // 跳过2字节端口号,指向地址
+                      // Skip 2 bytes port number, point to address
             ip = Address::netToHost(*(uint32_t *)(attr + pos)) ^ 0x2112a442;
             break;
         }
         // 跳过 2 字节类型,指向属性长度
+        // Skip 2 bytes type, point to attribute length
         pos += 2;
         // 跳过 2 字节长度和用该属性其他内容
+        // Skip 2 bytes length and other content of this attribute
         pos += 2 + Address::netToHost(*(uint16_t *)(attr + pos));
     }
     if (!ip || !port) {
@@ -1304,6 +1337,8 @@ int Client::handleStunResponse(const std::string &buffer) {
 
     // 收到 STUN 响应后,向所有 PREPARING 状态的对端发送自己的公网信息,如果当前持有对端公网信息,就将状态调整为 CONNECTING,
     // 否则调整为 SYNCHRONIZING
+    // After receiving the STUN response, send your public network information to all peers in the PREPARING state. If you
+    // currently have the peer's public network information, change the state to CONNECTING, otherwise change it to SYNCHRONIZING
     std::unique_lock lock(this->ipPeerMutex);
     for (auto &[tun, peer] : this->ipPeerMap) {
         if (peer.getState() == PeerState::PREPARING) {
@@ -1326,6 +1361,7 @@ int Client::handleHeartbeatMessage(const UdpMessage &message) {
     }
 
     // 收到对端的心跳,更新地址和端口
+    // Received heartbeat from peer, update address and port
     PeerHeartbeatMessage *heartbeat = (PeerHeartbeatMessage *)message.buffer.c_str();
     std::unique_lock lock(this->ipPeerMutex);
     uint32_t tun = Address::netToHost(heartbeat->tun);
@@ -1351,11 +1387,13 @@ int Client::handleHeartbeatMessage(const UdpMessage &message) {
     }
 
     // 设置确认标识,下次向对方发送的心跳将携带确认标识
+    // Set acknowledgment flag, the next heartbeat sent to the other party will carry the acknowledgment flag
     if (!peer.ack) {
         peer.ack = 1;
     }
 
     // 对方发来的心跳中包含确认标识,状态更新为 CONNECTED
+    // The heartbeat sent by the other party contains the acknowledgment flag, the state is updated to CONNECTED
     if (heartbeat->ack) {
         if (peer.getState() == PeerState::CONNECTED) {
             peer.count = 0;
@@ -1386,6 +1424,7 @@ int Client::handlePeerForwardMessage(const UdpMessage &message) {
         }
 
         // 可能是转发来的,尝试跟源地址建立直连
+        // It may be forwarded, try to establish a direct connection with the source address
         tryDirectConnection(Address::netToHost(ipv4Message->iph.saddr));
         return 0;
     }
@@ -1439,11 +1478,13 @@ int Client::updateCandyRtTable(CandyRouteEntry entry) {
     bool isDelete = (entry.delay < 0 || entry.delay > 1000);
 
     std::unique_lock lock(this->candyRtTableMutex);
-
     // 到达此目的地址的历史路由,下一跳可能不同
+    // Historical routes to this destination address, the next hop may be different
     auto oldEntry = this->candyRtTable.find(entry.dst);
 
     // 本机检测到连接断开,删除所有以断联设备作为下一跳的路由并广播
+    // The local machine detects a disconnection, deletes all routes that use the disconnected device as the next hop, and
+    // broadcasts
     if (isDirect && isDelete) {
         for (auto it = this->candyRtTable.begin(); it != this->candyRtTable.end();) {
             if (it->second.next == entry.next) {
@@ -1459,6 +1500,8 @@ int Client::updateCandyRtTable(CandyRouteEntry entry) {
     }
 
     // 本机检测到直连设备时延有更新,下一跳相同或者延迟更低时更新并广播
+    // The local machine detects an update in the delay of a directly connected device, updates and broadcasts if the next hop is
+    // the same or the delay is lower
     if (isDirect && !isDelete) {
         if (oldEntry == this->candyRtTable.end() || oldEntry->second.next == entry.next || oldEntry->second.delay > entry.delay) {
             this->candyRtTable[entry.dst] = entry;
@@ -1469,6 +1512,7 @@ int Client::updateCandyRtTable(CandyRouteEntry entry) {
     }
 
     // 收到设备断连广播,删除本机相同的路由并广播
+    // Received a disconnection broadcast from a device, deletes the same route on the local machine and broadcasts
     if (!isDirect && isDelete) {
         if (oldEntry != this->candyRtTable.end() && oldEntry->second.next == entry.next) {
             oldEntry->second.delay = DELAY_LIMIT;
@@ -1480,6 +1524,7 @@ int Client::updateCandyRtTable(CandyRouteEntry entry) {
     }
 
     // 收到设备时延更新广播,更新本机相同路由并广播
+    // Received a delay update broadcast from a device, updates the same route on the local machine and broadcasts
     if (!isDirect && !isDelete) {
         auto directEntry = this->candyRtTable.find(entry.next);
         if (directEntry == this->candyRtTable.end()) {

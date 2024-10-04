@@ -20,7 +20,7 @@ void AuthHeader::updateHash(const std::string &password) {
 }
 
 bool AuthHeader::check(const std::string &password) {
-    // 检查时间
+    // 检查时间 (Check the time)
     int64_t localTime = Time::unixTime();
     int64_t remoteTime = Time::netToHost(this->timestamp);
     if (std::abs(localTime - remoteTime) > 30) {
@@ -28,14 +28,14 @@ bool AuthHeader::check(const std::string &password) {
         return false;
     }
 
-    // 备份上报的数据
+    // 备份上报的数据 (Backup the reported data)
     uint8_t reported[SHA256_DIGEST_LENGTH];
     std::memcpy(reported, this->hash, SHA256_DIGEST_LENGTH);
 
-    // 用口令计算正确的哈希并填充
+    // 用口令计算正确的哈希并填充 (Calculate the correct hash using the password and fill it)
     updateHash(password);
 
-    // 检查上报的哈希和填充的哈希是否相等
+    // 检查上报的哈希和填充的哈希是否相等 (Check if the reported hash and the filled hash are equal)
     if (std::memcmp(reported, this->hash, SHA256_DIGEST_LENGTH)) {
         spdlog::warn("auth header hash check failed");
         return false;

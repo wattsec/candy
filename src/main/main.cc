@@ -23,6 +23,7 @@ namespace {
 
 struct arguments {
     // 通用配置
+    // General configuration
     std::string mode;
     std::string websocket;
     std::string password;
@@ -31,10 +32,12 @@ struct arguments {
     bool debug = false;
 
     // 服务端配置
+    // Server configuration
     std::string dhcp;
     std::string sdwan;
 
     // 客户端配置
+    // Client configuration
     std::string name;
     std::string tun;
     std::string stun;

@@ -245,22 +245,27 @@ void Server::handleForwardMessage(WebSocketMessage &message) {
 
     bool broadcast = [&] {
         // 多播地址
+        // Multicast address
         if ((daddr & 0xF0000000) == 0xE0000000) {
             return true;
         }
         // 广播
+        // Broadcast
         if (daddr == UINT32_MAX) {
             return true;
         }
         // 服务端没有配置动态分配地址的范围,没法检查是否为定向广播
+        // The server has not configured the dynamic address allocation range, unable to check if it is directed broadcast
         if (!this->dynamicAddrEnabled) {
             return false;
         }
         // 网络号不同,不是定向广播
+        // Different network number, not directed broadcast
         if ((this->dynamic.getMask() & daddr) != this->dynamic.getNet()) {
             return false;
         }
         // 主机号部分不全为 1,不是定向广播
+        // Host part is not all 1s, not directed broadcast
         if ((~this->dynamic.getMask()) & (daddr + 1)) {
             return false;
         }

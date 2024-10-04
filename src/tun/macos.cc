@@ -56,6 +56,7 @@ public:
 
     int up() {
         // 创建设备,操作系统不允许自定义设备名,只能由内核分配
+        // Create device, the operating system does not allow custom device names, they can only be assigned by the kernel
         this->tunFd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
         if (this->tunFd < 0) {
             spdlog::critical("create socket failed: {}", strerror(errno));
@@ -105,6 +106,7 @@ public:
         strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
 
         // 创建 socket, 并通过这个 socket 更新网卡的其他配置
+        // Create socket, and use this socket to update other network card configurations
         struct sockaddr_in *addr;
         addr = (struct sockaddr_in *)&ifr.ifr_addr;
         addr->sin_family = AF_INET;
@@ -115,6 +117,7 @@ public:
         }
 
         // 设置地址和掩码
+        // Set address and mask
         struct ifaliasreq areq;
         memset(&areq, 0, sizeof(areq));
         strncpy(areq.ifra_name, ifname, IFNAMSIZ);
@@ -137,6 +140,7 @@ public:
         }
 
         // 设置 MTU
+        // Set MTU
         ifr.ifr_mtu = this->mtu;
         if (ioctl(sockfd, SIOCSIFMTU, &ifr) == -1) {
             spdlog::critical("set mtu failed: mtu {}", this->mtu);
@@ -145,6 +149,7 @@ public:
         }
 
         // 设置 flags
+        // Set flags
         if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) == -1) {
             spdlog::critical("get interface flags failed");
             close(sockfd);
@@ -159,6 +164,7 @@ public:
         close(sockfd);
 
         // 设置路由
+        // Set route
         if (setSysRtTable(this->ip & this->mask, this->mask, this->ip)) {
             return -1;
         }
